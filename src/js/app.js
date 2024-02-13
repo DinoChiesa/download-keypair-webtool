@@ -1,9 +1,84 @@
-/* global atob, Buffer, TextDecoder, BUILD_VERSION, Blob, TextEncoder, copyToClipboard */
+/* global atob, Buffer, BUILD_VERSION, Blob  */
 
 import "bootstrap";
-import $ from "jquery";
+import LocalStorage from "./LocalStorage.js";
+import Clipboard from "./copy-to-clipboard.js";
 
-import "./copy-to-clipboard.js";
+const html5AppId = "40F735E1-7977-4997-A7EE-FD1CFD84D470";
+const storage = LocalStorage.init(html5AppId);
+const $sel = (query) => document.querySelector(query),
+  $all = (query) => document.querySelectorAll(query);
+
+const datamodel = {
+  "sel-variant": "",
+  "sel-curve": "",
+  ta_publickey: "",
+  ta_privatekey: "",
+  "data.ta_privatekey.key-id": ""
+};
+
+function retrieveLocalState() {
+  Object.keys(datamodel).forEach((key) => {
+    const value = storage.get(key);
+    if (key.startsWith("chk-")) {
+      datamodel[key] = String(value) == "true";
+    } else {
+      datamodel[key] = value;
+    }
+  });
+}
+
+function saveSetting(key, value) {
+  datamodel[key] = value;
+  storage.store(key, value);
+}
+
+function setSelectOptionByValue(el, etxt) {
+  for (let i = 0; i < el.options.length; ++i) {
+    if (el.options[i].value === etxt) {
+      el.options[i].selected = true;
+    }
+  }
+}
+
+function applyState() {
+  // ordering is important. We must apply variant before curve.
+  const keys = Object.keys(datamodel);
+  keys.sort((a, b) =>
+    a == "sel-variant" ? -1 : b == "sel-variant" ? 1 : a.localeCompare(b)
+  );
+  keys.forEach((key) => {
+    const value = datamodel[key];
+    if (value) {
+      if (key.startsWith("data.")) {
+        // a data attribute on an element.
+        // form of key is data.ELEMENTID.DATA-ATTR_NAME
+        const props = key.split(".", 3);
+        $sel(`#${props[1]}`).setAttribute(`data-${props[2]}`, value);
+      } else {
+        const el = $sel("#" + key);
+        if (key.startsWith("sel-")) {
+          setSelectOptionByValue(el, value);
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        } else if (key.startsWith("chk-")) {
+          el.checked = String(value) == "true";
+        } else if (key == "ta_publickey" || key == "ta_privatekey") {
+          //const keytype = key.substr(3);
+          el.value = value;
+        } else {
+          el.value = value;
+        }
+      }
+    }
+  });
+
+  const currentlySelectedVariant = getSelectedVariant();
+  if (currentlySelectedVariant == "RSA") {
+    const elCurve = $sel("#sel-curve");
+    elCurve.classList.add("hide");
+    elCurve.classList.remove("show");
+  }
+}
 
 function reformIndents(s) {
   const s2 = s
@@ -13,98 +88,46 @@ function reformIndents(s) {
   return s2.trim();
 }
 
-function handlePaste(e) {
-  let elt = this;
+function handlePaste(event) {
+  const elem = event.currentTarget;
   setTimeout(function () {
-    var text = reformIndents($(elt).val());
-    $(elt).val(text);
+    const text = reformIndents(elem.value);
+    elem.value = text;
   }, 100);
 }
 
-// function copyToClipboard(event) {
-//   event.preventDefault();
-//   const source = event.target || event.srcElement,
-//     id = source.getAttribute("id"),
-//     value = $sel(`#${id}`).value;
-//
-//   let $elt = $(this),
-//     sourceElement = $elt.data("target"),
-//     // grab the element to copy
-//     $source = $("#" + sourceElement),
-//     // Create a temporary hidden textarea.
-//     $temp = $("<textarea>");
-//
-//   //let textToCopy = $source.val();
-//   // in which case do I need text() ?
-//   let textToCopy =
-//     $source[0].tagName == "TEXTAREA" || $source[0].tagName == "INPUT"
-//       ? $source.val()
-//       : $source.text();
-//
-//   $("body").append($temp);
-//   $temp.val(textToCopy).select();
-//   let success;
-//   try {
-//     success = document.execCommand("copy");
-//     if (success) {
-//       // Animation to indicate copy.
-//       // CodeMirror obscures the original textarea, and appends a div as the next sibling.
-//       // We want to flash THAT.
-//       let $cmdiv = $source.next();
-//       if (
-//         $cmdiv.length > 0 &&
-//         $cmdiv.prop("tagName").toLowerCase() == "div" &&
-//         $cmdiv.hasClass("CodeMirror")
-//       ) {
-//         $cmdiv
-//           .addClass("copy-to-clipboard-flash-bg")
-//           .delay("1000")
-//           .queue((_) =>
-//             $cmdiv.removeClass("copy-to-clipboard-flash-bg").dequeue()
-//           );
-//       } else {
-//         // no codemirror (probably the secretkey field, which is just an input)
-//         $source
-//           .addClass("copy-to-clipboard-flash-bg")
-//           .delay("1000")
-//           .queue((_) =>
-//             $source.removeClass("copy-to-clipboard-flash-bg").dequeue()
-//           );
-//       }
-//     }
-//   } catch (e) {
-//     success = false;
+// function setAlert(html, alertClass) {
+//   const buttonHtml =
+//       '<button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
+//       ' <span aria-hidden="true">&times;</span>\n' +
+//       "</button>",
+//     mainalert = $sel("#mainalert");
+//   mainalert.innerHTML = html + buttonHtml;
+//   if (alertClass) {
+//     mainalert.classList.remove("alert-warning"); // this is the default
+//     mainalert.classList.add("alert-" + alertClass); // success, primary, warning, etc
+//   } else {
+//     mainalert.classList.add("alert-warning");
 //   }
-//   $temp.remove();
-//   return success;
+//   // show()
+//   mainalert.classList.remove("fade");
+//   mainalert.classList.add("show");
+//   setTimeout(() => {
+//     const mainalert = $sel("#mainalert");
+//     mainalert.classList.add("fade");
+//     mainalert.classList.remove("show");
+//   }, 5650);
 // }
 
-function setAlert(html, alertClass) {
-  let buttonHtml =
-      '<button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
-      ' <span aria-hidden="true">&times;</span>\n' +
-      "</button>",
-    $mainalert = $("#mainalert");
-  $mainalert.html(html + buttonHtml);
-  if (alertClass) {
-    $mainalert.removeClass("alert-warning"); // this is the default
-    $mainalert.addClass("alert-" + alertClass); // success, primary, warning, etc
-  } else {
-    $mainalert.addClass("alert-warning");
-  }
-  // show()
-  $mainalert.removeClass("fade").addClass("show");
-  setTimeout(() => $("#mainalert").addClass("fade").removeClass("show"), 5650);
-}
-
-function closeAlert(event) {
-  //$("#mainalert").toggle();
-  $("#mainalert").removeClass("show").addClass("fade");
+function closeAlert(_event) {
+  const mainalert = $sel("#mainalert");
+  mainalert.classList.remove("show");
+  mainalert.classList.add("fade");
   return false; // Keep close.bs.alert event from removing from DOM
 }
 
 function getKeyValue(flavor /* public || private */) {
-  return $("#ta_" + flavor + "key").val();
+  return $sel("#ta_" + flavor + "key").value;
 }
 
 function key2pem(flavor, keydata) {
@@ -113,20 +136,11 @@ function key2pem(flavor, keydata) {
   return `-----BEGIN ${flavor} KEY-----\n${body}\n-----END ${flavor} KEY-----`;
 }
 
-function getGenKeyParamsForRSA(hash) {
-  return {
-    name: "RSASSA-PKCS1-v1_5", // this name also works for RSA-PSS !
-    modulusLength: 2048, //can be 1024, 2048, or 4096
-    publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
-    hash: { name: hash } // eg "SHA-256", or "SHA-512"
-  };
-}
-
 function userDownload(blob, fileName) {
-  var a = document.createElement("a");
+  const a = document.createElement("a");
   document.body.appendChild(a);
   a.style = "display: none";
-  var url = window.URL.createObjectURL(blob);
+  const url = window.URL.createObjectURL(blob);
   a.href = url;
   a.download = fileName;
   a.click();
@@ -138,6 +152,15 @@ function userDownload(blob, fileName) {
 //   let re = new RegExp('[-:TZ\\.]', 'g');
 //   return s.replace(re, '');
 // }
+
+function displayAndStoreKeyValues(publickey, privatekey, keyid) {
+  $sel("#ta_publickey").value = publickey + "\n";
+  $sel("#ta_privatekey").value = privatekey + "\n";
+  $sel("#ta_privatekey").setAttribute("data-key-id", keyid);
+  saveSetting("ta_privatekey", privatekey);
+  saveSetting("ta_publickey", publickey);
+  saveSetting("data.ta_privatekey.key-id", keyid);
+}
 
 function exportPublicToPem(key) {
   return window.crypto.subtle
@@ -151,28 +174,52 @@ function exportPrivateToPkcs8(key) {
     .then((r) => key2pem("PRIVATE", r));
 }
 
-function newKeyPair(event) {
-  let keyUse = ["sign", "verify"], // irrelevant for our purposes (PEM Export)
+function getGenKeyParamsForECDSA() {
+  const el = $sel("#sel-curve");
+  const namedCurve = el.options[el.selectedIndex].value;
+  return {
+    name: "ECDSA",
+    namedCurve
+  };
+}
+
+function getGenKeyParamsForRSA(hash) {
+  return {
+    name: "RSASSA-PKCS1-v1_5", // this name also works for RSA-PSS !
+    modulusLength: 2048, //can be 1024, 2048, or 4096
+    publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
+    hash: { name: hash } // eg "SHA-256", or "SHA-512"
+  };
+}
+
+function newKeyPair(_event) {
+  const variant = getSelectedVariant(),
+    genKeyParams =
+      variant == "RSA"
+        ? getGenKeyParamsForRSA("SHA-256")
+        : getGenKeyParamsForECDSA(),
     isExtractable = true,
-    genKeyParams = getGenKeyParamsForRSA("SHA-256");
+    keyUse = ["sign", "verify"]; // irrelevant for our purposes (PEM Export)
+
   return window.crypto.subtle
     .generateKey(genKeyParams, isExtractable, keyUse)
     .then((key) =>
       Promise.all([exportPublicToPem(key), exportPrivateToPkcs8(key)])
     )
     .then(([publickey, privatekey]) => {
-      $("#ta_publickey").val(publickey + "\n");
-      $("#ta_privatekey").val(privatekey + "\n");
-      $("#ta_privatekey").data("key-id", generateKeyId());
+      const keyid = generateKeyId();
+      displayAndStoreKeyValues(publickey, privatekey, keyid);
     })
     .then(() => {
-      $("#mainalert").removeClass("show").addClass("fade");
+      const mainalert = $sel("#mainalert");
+      mainalert.classList.remove("show");
+      mainalert.classList.add("fade");
     });
 }
 
 function generateKeyId() {
-  let LENGTH = 28,
-    s = "";
+  const LENGTH = 28;
+  let s = "";
   do {
     s += Math.random().toString(36).substring(2, 15);
   } while (s.length < LENGTH);
@@ -180,66 +227,116 @@ function generateKeyId() {
 }
 
 function getKeyId() {
-  return $("#ta_privatekey").data("key-id");
+  return $sel("#ta_privatekey").getAttribute("data-key-id");
 }
 
-function downloadPem() {
-  let flavor = this.dataset.flavor;
-  let privatekey = getKeyValue(flavor);
-  let blob = new Blob([privatekey], { type: "text/plain; encoding=utf8" });
-  let keyId = getKeyId();
-  userDownload(blob, `rsa-${flavor}key-${keyId}.pem`);
+function getSelectedCurve() {
+  const elCurve = $sel("#sel-curve");
+  return elCurve.options[elCurve.selectedIndex].value;
+}
+
+function getSelectedVariant() {
+  const elVariant = $sel("#sel-variant");
+  return elVariant.options[elVariant.selectedIndex].value;
+}
+
+function downloadPem(event) {
+  const elem = event.currentTarget, // or this?
+    keyFlavor = elem.getAttribute("data-flavor"),
+    privatekey = getKeyValue(keyFlavor),
+    blob = new Blob([privatekey], { type: "text/plain; encoding=utf8" }),
+    keyId = getKeyId(),
+    variant = getSelectedVariant(),
+    filename =
+      variant == "RSA"
+        ? `${variant}-${keyFlavor}key-${keyId}.pem`
+        : `${variant}-${getSelectedCurve()}-${keyFlavor}key-${keyId}.pem`;
+  userDownload(blob, filename);
 }
 
 function downloadJson() {
-  let key_id = getKeyId(),
+  const variant = getSelectedVariant(),
+    key_id = getKeyId(),
     json = {
-      type: `RSA key pair`,
+      type: `${variant} key pair`,
       generated: new Date().toISOString(),
       key_id,
       public_key: getKeyValue("public"),
       private_key: getKeyValue("private")
     };
 
-  let blob = new Blob([JSON.stringify(json, null, 2)], {
-    type: "text/plain; encoding=utf8"
-  });
-  userDownload(blob, `rsa-keypair-${key_id}.json`);
+  if (variant == "EC") {
+    json.namedCurve = getSelectedCurve();
+  }
+  const blob = new Blob([JSON.stringify(json, null, 2)], {
+      type: "text/plain; encoding=utf8"
+    }),
+    filename =
+      variant == "RSA"
+        ? `${variant}-keypair-${key_id}.json`
+        : `${variant}-${getSelectedCurve()}-keypair-${key_id}.json`;
+
+  userDownload(blob, filename);
 }
 
-// $(document).ready(function () {
-//   $("#version_id").text(BUILD_VERSION);
-//   $(".btn-copy").on("click", copyToClipboard);
-//   $(".btn-newkeypair").on("click", newKeyPair);
-//   $(".btn-download-pem").on("click", downloadPem);
-//   $(".btn-download-json").on("click", downloadJson);
-//
-//   $("#ta_privatekey").on("paste", handlePaste);
-//   $("#ta_publickey").on("paste", handlePaste);
-//
-//   $("#mainalert").addClass("fade");
-//   $("#mainalert").on("close.bs.alert", closeAlert);
-//
-//   newKeyPair();
-// });
+function conditionallyShowCurve(variantSelection) {
+  const elCurve = $sel("#sel-curve");
+  if (variantSelection == "RSA") {
+    // not used for RSA
+    elCurve.classList.add("hide");
+    elCurve.classList.remove("show");
+  } else {
+    elCurve.classList.add("show");
+    elCurve.classList.remove("hide");
+  }
+}
 
-const $sel = (query) => document.querySelector(query),
-  $all = (query) => document.querySelectorAll(query);
+function resetKeyValues() {
+  displayAndStoreKeyValues("", "", "");
+}
+
+function onChangeVariant(_event) {
+  const newSelection = getSelectedVariant();
+  conditionallyShowCurve(newSelection);
+  resetKeyValues();
+  saveSetting("sel-variant", newSelection);
+}
+
+function onChangeCurve(_event) {
+  const elCurve = $sel("#sel-curve");
+  const newSelection = elCurve.options[elCurve.selectedIndex].value;
+  resetKeyValues();
+  saveSetting("sel-curve", newSelection);
+}
 
 document.addEventListener("DOMContentLoaded", (_event) => {
-  $sel("#version_id").innerHTML(BUILD_VERSION);
-  //$(".btn-copy").on("click", copyToClipboard);
-  $sel(".btn-copy").addEventListener("click", copyToClipboard);
+  retrieveLocalState();
+  applyState();
 
-  $(".btn-newkeypair").on("click", newKeyPair);
-  $(".btn-download-pem").on("click", downloadPem);
-  $(".btn-download-json").on("click", downloadJson);
+  $sel("#version_id").innerHTML = BUILD_VERSION;
+  $sel(".btn-newkeypair").addEventListener("click", newKeyPair);
+  $sel(".btn-download-json").addEventListener("click", downloadJson);
 
-  $("#ta_privatekey").on("paste", handlePaste);
-  $("#ta_publickey").on("paste", handlePaste);
+  $all(".btn-copy").forEach((btn) =>
+    btn.addEventListener("click", Clipboard.copy)
+  );
+  $all(".btn-download-pem").forEach((btn) =>
+    btn.addEventListener("click", downloadPem)
+  );
+  $all(".reform-indent-on-paste").forEach((ta) =>
+    ta.addEventListener("paste", handlePaste)
+  );
 
-  $("#mainalert").addClass("fade");
-  $("#mainalert").on("close.bs.alert", closeAlert);
+  $sel("#sel-variant").addEventListener("change", onChangeVariant);
+  $sel("#sel-curve").addEventListener("change", onChangeCurve);
 
-  newKeyPair();
+  const mainalert = $sel("#mainalert");
+  mainalert.classList.add("fade");
+  // not sure if the following is used
+  mainalert.addEventListener("close.bs.alert", closeAlert);
+
+  conditionallyShowCurve(getSelectedVariant());
+  if (!datamodel.ta_privatekey || !datamodel.ta_publickey) {
+    newKeyPair();
+  }
 });
