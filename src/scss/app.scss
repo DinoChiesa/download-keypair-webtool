@@ -23,7 +23,7 @@ textarea {
   border-color: grey;
   border-style: dotted;
   padding: 0 8px;
-  font-size:160%;
+  font-size: 160%;
   p {
     margin-bottom: 0.2rem;
     /* color: #BDBDBD; */
@@ -32,22 +32,22 @@ textarea {
 
 .panel-left {
   float: left;
-  width: 580px;
+  width: 630px;
   min-height: 520px;
   margin: 2px 0;
 }
 
 .panel-center {
   float: left;
-  width: 114px;
+  width: 154px;
   margin: 2px 0;
   border-width: 0;
   > button {
     margin-top: 14px;
-    width: 118px;
+    width: 168px;
   }
   > select {
-    width: 118px;
+    width: 168px;
   }
   > select:not(:first-child) {
     margin-top: 14px;
@@ -55,8 +55,8 @@ textarea {
 }
 
 .panel-right {
-  min-width: 426px;
-  margin-left: 716px;
+   /* min-width: 426px; */
+  margin-left: 816px;
 }
 
 .plaintextvalue {
@@ -112,6 +112,7 @@ textarea {
   background-color: #ECECEC;
   padding: 0 4px;
   min-height: 120px;
+  font-size: 50%;
 }
 
 .banner > h2, .banner > div {

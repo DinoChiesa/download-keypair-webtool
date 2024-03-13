@@ -19,6 +19,8 @@ import "bootstrap";
 import LocalStorage from "./LocalStorage.js";
 import Clipboard from "./copy-to-clipboard.js";
 
+const RSA_KEYTYPE = "RSASSA-PKCS1-v1_5", // "RSA-PSS"
+  RSA_HASH = "SHA-256";
 const html5AppId = "40F735E1-7977-4997-A7EE-FD1CFD84D470";
 const storage = LocalStorage.init(html5AppId);
 const $sel = (query) => document.querySelector(query),
@@ -93,6 +95,15 @@ function applyState() {
     elCurve.classList.add("hide");
     elCurve.classList.remove("show");
   }
+}
+
+function str2ab(str) {
+  const buf = new ArrayBuffer(str.length);
+  const bufView = new Uint8Array(buf);
+  for (let i = 0, strLen = str.length; i < strLen; i++) {
+    bufView[i] = str.charCodeAt(i);
+  }
+  return buf;
 }
 
 function reformIndents(s) {
@@ -189,6 +200,31 @@ function exportPrivateToPkcs8(key) {
     .then((r) => key2pem("PRIVATE", r));
 }
 
+function reconstitutePrivateKeyFromPem(variant, namedCurve) {
+  const pem = getKeyValue("private");
+  const pemHeader = "-----BEGIN PRIVATE KEY-----";
+  const pemFooter = "-----END PRIVATE KEY-----";
+  const pemContents = pem.substring(
+    pemHeader.length,
+    pem.length - pemFooter.length - 1
+  );
+  // base64 decode the string to get the binary data
+  const binaryDerString = window.atob(pemContents);
+  // convert from a binary string to an ArrayBuffer
+  const binaryDer = str2ab(binaryDerString);
+  const params =
+    variant == "EC"
+      ? { name: "ECDSA", namedCurve }
+      : {
+          name: RSA_KEYTYPE,
+          hash: RSA_HASH
+        };
+
+  return window.crypto.subtle.importKey("pkcs8", binaryDer, params, true, [
+    "sign"
+  ]);
+}
+
 function getGenKeyParamsForECDSA() {
   const el = $sel("#sel-curve");
   const namedCurve = el.options[el.selectedIndex].value;
@@ -200,7 +236,7 @@ function getGenKeyParamsForECDSA() {
 
 function getGenKeyParamsForRSA(hash) {
   return {
-    name: "RSASSA-PKCS1-v1_5", // this name also works for RSA-PSS !
+    name: RSA_KEYTYPE,
     modulusLength: 2048, //can be 1024, 2048, or 4096
     publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
     hash: { name: hash } // eg "SHA-256", or "SHA-512"
@@ -211,10 +247,10 @@ function newKeyPair(_event) {
   const variant = getSelectedVariant(),
     genKeyParams =
       variant == "RSA"
-        ? getGenKeyParamsForRSA("SHA-256")
+        ? getGenKeyParamsForRSA(RSA_HASH)
         : getGenKeyParamsForECDSA(),
     isExtractable = true,
-    keyUse = ["sign", "verify"]; // irrelevant for our purposes (PEM Export)
+    keyUse = ["sign", "verify"]; // relevant only for JWK export
 
   return window.crypto.subtle
     .generateKey(genKeyParams, isExtractable, keyUse)
@@ -269,12 +305,13 @@ function downloadPem(event) {
   userDownload(blob, filename);
 }
 
-function downloadJson() {
+function downloadJsonKeypair() {
   const variant = getSelectedVariant(),
     key_id = getKeyId(),
     json = {
       type: `${variant} key pair`,
       generated: new Date().toISOString(),
+      generator: "dinochiesa.github.io/download-keypair",
       key_id,
       public_key: getKeyValue("public"),
       private_key: getKeyValue("private")
@@ -292,6 +329,65 @@ function downloadJson() {
         : `${variant}-${getSelectedCurve()}-keypair-${key_id}.json`;
 
   userDownload(blob, filename);
+}
+
+async function exportPrivateToJwk(cryptoKey) {
+  const jwk = await window.crypto.subtle.exportKey("jwk", cryptoKey);
+  return [jwk, "private"];
+  //    .then((r) => JSON.stringify(r, null, "  "));
+}
+
+async function exportPublicToJwk(cryptoKey) {
+  // bunch of pushups to convert private key to public key JWK
+  const [jwkPrivate] = await exportPrivateToJwk(cryptoKey);
+  const alg = cryptoKey.algorithm;
+  delete jwkPrivate.d;
+  if (jwkPrivate.dp) {
+    delete jwkPrivate.dp;
+    delete jwkPrivate.dq;
+    //delete jwkPrivate.p;
+    delete jwkPrivate.q;
+    delete jwkPrivate.qi;
+  }
+  jwkPrivate.key_ops = ["verify"];
+  const jwk = await window.crypto.subtle
+    .importKey(
+      "jwk",
+      jwkPrivate,
+      {
+        name: alg.name,
+        namedCurve: alg.namedCurve,
+        hash: alg.hash && alg.hash.name
+      },
+      true,
+      ["verify"]
+    )
+    .then((key) => window.crypto.subtle.exportKey("jwk", key));
+  return [jwk, "public"];
+}
+
+function downloadJwk(exportFn) {
+  return async function () {
+    const variant = getSelectedVariant(),
+      key_id = getKeyId(),
+      key = await reconstitutePrivateKeyFromPem(
+        variant,
+        variant == "EC" ? getSelectedCurve() : false
+      ),
+      [json, pubpriv] = await exportFn(key);
+
+    json.kid = key_id;
+
+    const blob = new Blob([JSON.stringify({ keys: [json] }, null, 2)], {
+        type: "text/plain; encoding=utf8"
+      }),
+      filename =
+        variant == "RSA"
+          ? `${variant}-jwk-${pubpriv}-${key_id}.json`
+          : `${variant}-${json.crv}-jwk-${pubpriv}-${key_id}.json`;
+
+    userDownload(blob, filename);
+  };
 }
 
 function conditionallyShowCurve(variantSelection) {
@@ -330,7 +426,15 @@ document.addEventListener("DOMContentLoaded", (_event) => {
 
   $sel("#version_id").innerHTML = BUILD_VERSION;
   $sel(".btn-newkeypair").addEventListener("click", newKeyPair);
-  $sel(".btn-download-json").addEventListener("click", downloadJson);
+  $sel(".btn-download-json").addEventListener("click", downloadJsonKeypair);
+  $sel(".btn-download-jwk-private").addEventListener(
+    "click",
+    downloadJwk(exportPrivateToJwk)
+  );
+  $sel(".btn-download-jwk-public").addEventListener(
+    "click",
+    downloadJwk(exportPublicToJwk)
+  );
 
   $all(".btn-copy").forEach((btn) =>
     btn.addEventListener("click", Clipboard.copy)
