@@ -1,6 +1,6 @@
 {
   "name": "download-keypair-webtool",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "web tool to generate and download keypairs",
   "main": "webpack.config.js",
   "scripts": {
@@ -10,14 +10,17 @@
     "build": "rm -rf dist/* && webpack --mode=production --progress --color"
   },
   "keywords": [
-    "RSA", "download", "keypair"
+    "RSA", "elliptic curve", "download", "keypair", "JWK"
   ],
   "author": "Dino Chiesa <dchiesa@google.com>",
   "license": "Apache-2.0",
   "dependencies": {
-    "bootstrap": "^4.5.3",
-    "open-iconic": "1.1.1",
+    "bootstrap": "^5.3.3",
+    "open-iconic": "1.1.1"
+  },
+  "not-needed" : {
     "popper.js": "^1.16.0"
+
   },
   "devDependencies": {
     "child_process": "^1.0.2",

@@ -15,7 +15,8 @@
 
 /* global atob, Buffer, BUILD_VERSION, Blob  */
 
-import "bootstrap";
+/* import { _Tooltip, Popover } from "bootstrap"; */
+
 import LocalStorage from "./LocalStorage.js";
 import Clipboard from "./copy-to-clipboard.js";
 
@@ -29,9 +30,12 @@ const $sel = (query) => document.querySelector(query),
 const datamodel = {
   "sel-variant": "",
   "sel-curve": "",
-  ta_publickey: "",
-  ta_privatekey: "",
-  "data.ta_privatekey.key-id": ""
+  "ta-publickey-RSA": "",
+  "ta-privatekey-RSA": "",
+  "ta-keyid-RSA": "",
+  "ta-publickey-EC": "",
+  "ta-privatekey-EC": "",
+  "ta-keyid-EC": ""
 };
 
 function retrieveLocalState() {
@@ -67,24 +71,26 @@ function applyState() {
   keys.forEach((key) => {
     const value = datamodel[key];
     if (value) {
-      if (key.startsWith("data.")) {
-        // a data attribute on an element.
-        // form of key is data.ELEMENTID.DATA-ATTR_NAME
-        const props = key.split(".", 3);
-        $sel(`#${props[1]}`).setAttribute(`data-${props[2]}`, value);
-      } else {
-        const el = $sel("#" + key);
-        if (key.startsWith("sel-")) {
-          setSelectOptionByValue(el, value);
-          el.dispatchEvent(new Event("change", { bubbles: true }));
-        } else if (key.startsWith("chk-")) {
-          el.checked = String(value) == "true";
-        } else if (key == "ta_publickey" || key == "ta_privatekey") {
-          //const keytype = key.substr(3);
-          el.value = value;
-        } else {
+      let el = $sel("#" + key);
+      if (key.startsWith("sel-")) {
+        setSelectOptionByValue(el, value);
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      } else if (key.startsWith("chk-")) {
+        el.checked = String(value) == "true";
+      } else if (
+        key.startsWith("ta-publickey-") ||
+        key.startsWith("ta-privatekey-") ||
+        key.startsWith("ta-keyid-")
+      ) {
+        //const keytype = key.substr(3);
+        const parts = key.split("-");
+        if (parts[2] == datamodel["sel-variant"]) {
+          const id = parts.slice(0, -1).join("-");
+          el = $sel(`#${id}`);
           el.value = value;
         }
+      } else {
+        el.value = value;
       }
     }
   });
@@ -153,7 +159,7 @@ function closeAlert(_event) {
 }
 
 function getKeyValue(flavor /* public || private */) {
-  return $sel("#ta_" + flavor + "key").value;
+  return $sel("#ta-" + flavor + "key").value;
 }
 
 function key2pem(flavor, keydata) {
@@ -179,13 +185,18 @@ function userDownload(blob, fileName) {
 //   return s.replace(re, '');
 // }
 
+function displayKeyValues(publickey, privatekey, keyid) {
+  $sel("#ta-publickey").value = publickey + "\n";
+  $sel("#ta-privatekey").value = privatekey + "\n";
+  $sel("#ta-keyid").value = keyid;
+}
+
 function displayAndStoreKeyValues(publickey, privatekey, keyid) {
-  $sel("#ta_publickey").value = publickey + "\n";
-  $sel("#ta_privatekey").value = privatekey + "\n";
-  $sel("#ta_privatekey").setAttribute("data-key-id", keyid);
-  saveSetting("ta_privatekey", privatekey);
-  saveSetting("ta_publickey", publickey);
-  saveSetting("data.ta_privatekey.key-id", keyid);
+  const variant = getSelectedVariant();
+  displayKeyValues(publickey, privatekey, keyid);
+  saveSetting(`ta-privatekey-${variant}`, privatekey);
+  saveSetting(`ta-publickey-${variant}`, publickey);
+  saveSetting(`ta-keyid-${variant}`, keyid);
 }
 
 function exportPublicToPem(key) {
@@ -278,7 +289,7 @@ function generateKeyId() {
 }
 
 function getKeyId() {
-  return $sel("#ta_privatekey").getAttribute("data-key-id");
+  return $sel("#ta-keyid").value;
 }
 
 function getSelectedCurve() {
@@ -402,15 +413,20 @@ function conditionallyShowCurve(variantSelection) {
   }
 }
 
-function resetKeyValues() {
-  displayAndStoreKeyValues("", "", "");
+function resetKeyValues(variant) {
+  const ids = ["publickey", "privatekey", "keyid"].map(
+    (w) => `ta-${w}-${variant}`
+  );
+  const values = ids.map((id) => datamodel[id] || "");
+
+  displayKeyValues(values[0], values[1], values[2]);
 }
 
 function onChangeVariant(_event) {
   const newSelection = getSelectedVariant();
   conditionallyShowCurve(newSelection);
-  resetKeyValues();
   saveSetting("sel-variant", newSelection);
+  resetKeyValues(newSelection);
 }
 
 function onChangeCurve(_event) {
@@ -454,8 +470,12 @@ document.addEventListener("DOMContentLoaded", (_event) => {
   // not sure if the following is used
   mainalert.addEventListener("close.bs.alert", closeAlert);
 
-  conditionallyShowCurve(getSelectedVariant());
-  if (!datamodel.ta_privatekey || !datamodel.ta_publickey) {
+  const variant = getSelectedVariant();
+  conditionallyShowCurve(variant);
+  if (
+    !datamodel[`ta-privatekey-${variant}`] ||
+    !datamodel[`ta-publickey-${variant}`]
+  ) {
     newKeyPair();
   }
 });

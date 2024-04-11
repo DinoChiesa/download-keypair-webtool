@@ -5,21 +5,21 @@ body {
 }
 
 .container {
-    width: 100%;
-    max-width: 1540px;
-    padding: 0 15px;
-    margin: auto;
-    overflow: hidden;
+  width: 100%;
+  max-width: 1160px;
+  padding: 0 15px;
+  margin: auto;
+  overflow: hidden;
 }
 
 textarea {
   font-family: monospace;
-  max-width:876px;
-  width:100%;
+  max-width: 876px;
+  width: 100%;
 }
 
 .panel {
-  border-width: 1px 1px 1px 1px;
+  border-width: 1px;
   border-color: grey;
   border-style: dotted;
   padding: 0 8px;
@@ -32,7 +32,7 @@ textarea {
 
 .panel-left {
   float: left;
-  width: 630px;
+  width: 600px;
   min-height: 520px;
   margin: 2px 0;
 }
@@ -55,8 +55,7 @@ textarea {
 }
 
 .panel-right {
-   /* min-width: 426px; */
-  margin-left: 816px;
+  margin-left: 786px;
 }
 
 .plaintextvalue {
@@ -64,24 +63,25 @@ textarea {
   border: 1px solid #ccc;
   border-radius: 4px;
   padding: 4px;
-  margin: 0 0 8px 0;
-  font-family: Menlo,Monaco,Consolas,"Courier New",monospace;
+  margin: 0 0 8px;
+  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
   font-size: 0.8rem;
 
   /* all below, to handle really long JWTs */
-  white-space: -moz-pre-wrap !important;  /* Mozilla, since 1999 */
-  white-space: -pre-wrap;      /* Opera 4-6 */
-  white-space: -o-pre-wrap;    /* Opera 7 */
-  white-space: pre-wrap;       /* css-3 */
-  word-wrap: break-word;       /* Internet Explorer 5.5+ */
+  word-wrap: break-word; /* Internet Explorer 5.5+ */
+  white-space: -moz-pre-wrap !important; /* Mozilla, since 1999 */
+  white-space: -pre-wrap; /* Opera 4-6 */
+  white-space: -o-pre-wrap; /* Opera 7 */
+  white-space: pre-wrap; /* css-3 */
   white-space: -webkit-pre-wrap; /* Newer versions of Chrome/Safari*/
   word-break: break-all;
   white-space: normal;
 }
 
-#ta_privatekey, #ta_publickey {
-    font-size: 0.8rem;
-    max-height: 232px;
+#ta-privatekey,
+#ta-publickey {
+  font-size: 0.8rem;
+  max-height: 232px;
 }
 
 .banner > .alert {
@@ -97,33 +97,36 @@ textarea {
   position: relative;
 }
 
-.banner, .footer {
+.banner,
+.footer {
   border: 1px dotted grey;
 }
 
 .banner {
-  margin-bottom:24px;
-  background-color: #DFDDDD;
+  margin-bottom: 24px;
+  background-color: #dfdddd;
   height: 120px;
 }
 
 .footer {
-  margin-top:24px;
-  background-color: #ECECEC;
+  margin-top: 24px;
+  background-color: #ececec;
   padding: 0 4px;
   min-height: 120px;
   font-size: 50%;
 }
 
-.banner > h2, .banner > div {
+.banner > h2,
+.banner > div {
   margin: 0;
   position: absolute;
   left: 50%;
   margin-right: -50%;
-  transform: translate(-50%, -50%)
+  transform: translate(-50%, -50%);
 }
 
-.banner > h2, .footer > h2 {
+.banner > h2,
+.footer > h2 {
   top: 46px;
 }
 
@@ -144,31 +147,31 @@ textarea {
 
 .alert.fade {
   opacity: 0;
-  transition: opacity .85s linear;
+  transition: opacity 0.85s linear;
 }
 
 .copy-to-clipboard-flash-bg {
-    animation-name: flashbg;
-    animation-timing-function: ease-out;
-    animation-duration: 1s;
+  animation-name: flashbg;
+  animation-timing-function: ease-out;
+  animation-duration: 1s;
 }
 
 @keyframes flashbg {
-    0% {
-        background: #539EDB;
-    }
-    100% {
-        background: transparent;
-    }
+  0% {
+    background: #539edb;
+  }
+  100% {
+    background: transparent;
+  }
 }
 
 .outdated {
-  background-color: #DCDCDC;
+  background-color: #dcdcdc;
 }
 
 .hide {
-  display:none;
+  display: none;
 }
 .show {
-  display:inherit;
+  display: inherit;
 }
